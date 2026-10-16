@@ -79,8 +79,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: clientjar/builds/eaglercraft-project
-          key: project-v1-${{ steps.keys.outputs.patches }}-${{ github.run_id }}
-          restore-keys: project-v1-${{ steps.keys.outputs.patches }}-
+          key: project-v2-${{ steps.keys.outputs.patches }}-${{ github.run_id }}
+          restore-keys: project-v2-${{ steps.keys.outputs.patches }}-
 
       - name: Cache status
         run: echo "project cache hit=${{ steps.projcache.outputs.cache-hit }} matched=${{ steps.projcache.outputs.cache-matched-key }}"
@@ -103,7 +103,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: clientjar/builds/eaglercraft-project
-          key: project-v1-${{ steps.keys.outputs.patches }}-${{ github.run_id }}
+          key: project-v2-${{ steps.keys.outputs.patches }}-${{ github.run_id }}
 
       - name: Save Gradle cache
         if: always()

@@ -60,7 +60,7 @@ jobs:
       # Computed once, before the build moves a patch out of the tree, so the save key matches the restore key.
       - name: Compute cache key
         id: keys
-        run: echo "patches=${{ hashFiles('clientjar/src/client/patches/**', 'clientjar/src/client/toolchain-patches/**', 'clientjar/scripts/ci-build.sh', 'clientjar/scripts/build-eaglercraft.sh') }}" >> "$GITHUB_OUTPUT"
+        run: echo "patches=${{ hashFiles('clientjar/src/client/patches/**', 'clientjar/src/client/toolchain-patches/**', 'clientjar/scripts/build-eaglercraft.sh') }}" >> "$GITHUB_OUTPUT"
 
       # Caches (bump the v1 in the keys to throw them away). The project cache holds the decompiled, patched
       # project and TeaVM's content-verified link cache, so a repeat build skips decompiling and unchanged
@@ -80,7 +80,9 @@ jobs:
         with:
           path: clientjar/builds/eaglercraft-project
           key: project-v1-${{ steps.keys.outputs.patches }}-${{ github.run_id }}
-          restore-keys: project-v1-${{ steps.keys.outputs.patches }}-
+          restore-keys: |
+            project-v1-${{ steps.keys.outputs.patches }}-
+            project-v1-
 
       - name: Cache status
         run: echo "project cache hit=${{ steps.projcache.outputs.cache-hit }} matched=${{ steps.projcache.outputs.cache-matched-key }}"
@@ -120,6 +122,7 @@ jobs:
         run: |
           mkdir -p ci-out
           cp clientjar/builds/tempest-26.2-client.html ci-out/ 2>/dev/null || true
+          cp -rL clientjar/builds/wasm-full ci-out/wasm-full 2>/dev/null || true
           cp clientjar/builds/tempest-26.2-client.html.br ci-out/ 2>/dev/null || true
           tail -n 300 build.log > ci-out/build-tail.log || true
 

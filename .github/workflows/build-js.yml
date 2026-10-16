@@ -1,0 +1,131 @@
+name: Build JS client
+
+on:
+  push:
+    branches: ["run-js"]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or commit of pxdns/clientjar to build"
+        default: "main"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo apt-get clean
+          df -h / | tail -n 1
+
+      - name: Check access token
+        env:
+          TOKEN: ${{ secrets.CLIENTJAR_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Secret CLIENTJAR_TOKEN is not set (needs Contents: Read-only on pxdns/clientjar)."
+            exit 1
+          fi
+
+      - name: Check out clientjar (private)
+        uses: actions/checkout@v4
+        with:
+          repository: pxdns/eaglercraft-26.2
+          ref: ${{ inputs.ref || 'main' }}
+          token: ${{ secrets.CLIENTJAR_TOKEN }}
+          path: clientjar
+          persist-credentials: false
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Check runner memory
+        run: |
+          free -m
+          avail=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo)
+          echo "available: ${avail} MiB"
+          [ "$avail" -ge 12300 ] || { echo "::error::Only ${avail} MiB free; the build needs 12300+."; exit 1; }
+
+      # Computed once, before the build moves a patch out of the tree, so the save key matches the restore key.
+      - name: Compute cache key
+        id: keys
+        run: echo "patches=${{ hashFiles('clientjar/src/client/patches/**', 'clientjar/src/client/toolchain-patches/**', 'clientjar/scripts/ci-build.sh', 'clientjar/scripts/build-eaglercraft.sh') }}" >> "$GITHUB_OUTPUT"
+
+      # Caches (bump the v1 in the keys to throw them away). The project cache holds the decompiled, patched
+      # project and TeaVM's content-verified link cache, so a repeat build skips decompiling and unchanged
+      # compile passes. The key follows the patches: if a patch changes, the project is rebuilt from scratch.
+      - name: Restore Gradle cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradlejs-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: gradlejs-v1-${{ runner.os }}-
+
+      - name: Restore project cache
+        id: projcache
+        uses: actions/cache/restore@v4
+        with:
+          path: clientjar/builds/eaglercraft-project
+          key: projectjs-v1-${{ steps.keys.outputs.patches }}-${{ github.run_id }}
+          restore-keys: projectjs-v1-${{ steps.keys.outputs.patches }}-
+
+      - name: Cache status
+        run: echo "project cache hit=${{ steps.projcache.outputs.cache-hit }} matched=${{ steps.projcache.outputs.cache-matched-key }}"
+
+      - name: Clean stale locks
+        run: find clientjar/builds/eaglercraft-project -name operation.lock -delete 2>/dev/null || true
+
+      - name: Build
+        shell: bash
+        working-directory: clientjar
+        run: bash scripts/ci-build-js.sh 2>&1 | tee ../build.log
+
+      - name: Clean stale locks before saving
+        if: always()
+        run: find clientjar/builds/eaglercraft-project -name operation.lock -delete 2>/dev/null || true
+
+      - name: Save project cache
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: clientjar/builds/eaglercraft-project
+          key: projectjs-v1-${{ steps.keys.outputs.patches }}-${{ github.run_id }}
+
+      - name: Save Gradle cache
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradlejs-v1-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Collect output
+        if: always()
+        run: |
+          mkdir -p ci-out
+          cp -rL clientjar/builds/js-full ci-out/js 2>/dev/null || true
+          tail -n 300 build.log > ci-out/build-tail.log || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tempest-26.2-js
+          path: ci-out/
+          if-no-files-found: warn
+          retention-days: 7

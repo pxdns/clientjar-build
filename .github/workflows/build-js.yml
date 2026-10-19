@@ -20,6 +20,18 @@ jobs:
           sudo apt-get clean
           df -h / | tail -n 1
 
+      # TeaVM's JavaScript link needs more memory than the runner has (it died with "Not enough memory to allocate
+      # buffers" at 9 and 12 GB), so give the machine a big swap file on the runner's second disk.
+      - name: Add swap
+        run: |
+          df -h / /mnt | tail -n 2
+          sudo swapoff -a || true
+          sudo fallocate -l 32G /mnt/swapfile || sudo fallocate -l 20G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
+          free -m
+
       - name: Check access token
         env:
           TOKEN: ${{ secrets.CLIENTJAR_TOKEN }}

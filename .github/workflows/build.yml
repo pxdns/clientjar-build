@@ -8,6 +8,10 @@ on:
       ref:
         description: "Branch or commit of pxdns/clientjar to build"
         default: "main"
+      teavm_version:
+        description: "Trial: build with this TeaVM release instead of the pinned 0.13.1 (empty = normal build; needs a ref whose scripts/ci-build.sh supports it)"
+        required: false
+        default: ""
 
 jobs:
   build:
@@ -91,6 +95,8 @@ jobs:
       - name: Build
         shell: bash
         working-directory: clientjar
+        env:
+          TEAVM_VERSION: ${{ inputs.teavm_version }}
         run: bash scripts/ci-build.sh 2>&1 | tee ../build.log
 
       - name: Clean stale locks before saving

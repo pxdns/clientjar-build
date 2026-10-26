@@ -8,6 +8,10 @@ on:
       ref:
         description: "Branch or commit of pxdns/clientjar to build"
         default: "main"
+      teavm_version:
+        description: "Trial: build with this TeaVM release instead of the pinned 0.13.0 (empty = normal build; needs a ref whose scripts/ci-build-js.sh supports it)"
+        required: false
+        default: ""
 
 jobs:
   build:
@@ -91,8 +95,8 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: clientjar/builds/eaglercraft-project
-          key: projectjs-v1-${{ steps.keys.outputs.patches }}-${{ github.run_id }}
-          restore-keys: projectjs-v1-${{ steps.keys.outputs.patches }}-
+          key: projectjs-v1-${{ inputs.teavm_version && format('tv{0}-', inputs.teavm_version) || '' }}${{ steps.keys.outputs.patches }}-${{ github.run_id }}
+          restore-keys: projectjs-v1-${{ inputs.teavm_version && format('tv{0}-', inputs.teavm_version) || '' }}${{ steps.keys.outputs.patches }}-
 
       - name: Cache status
         run: echo "project cache hit=${{ steps.projcache.outputs.cache-hit }} matched=${{ steps.projcache.outputs.cache-matched-key }}"
@@ -103,6 +107,8 @@ jobs:
       - name: Build
         shell: bash
         working-directory: clientjar
+        env:
+          TEAVM_VERSION: ${{ inputs.teavm_version }}
         run: bash scripts/ci-build-js.sh 2>&1 | tee ../build.log
 
       - name: Clean stale locks before saving
@@ -115,7 +121,7 @@ jobs:
         uses: actions/cache/save@v6
         with:
           path: clientjar/builds/eaglercraft-project
-          key: projectjs-v1-${{ steps.keys.outputs.patches }}-${{ github.run_id }}
+          key: projectjs-v1-${{ inputs.teavm_version && format('tv{0}-', inputs.teavm_version) || '' }}${{ steps.keys.outputs.patches }}-${{ github.run_id }}
 
       - name: Save Gradle cache
         if: always()

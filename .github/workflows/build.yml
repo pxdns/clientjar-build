@@ -2,7 +2,7 @@ name: Build client
 
 on:
   push:
-    branches: ["run"]
+    branches: ["run", "run-aurora"]
   workflow_dispatch:
     inputs:
       ref:
@@ -37,7 +37,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: pxdns/eaglercraft-26.2
-          ref: ${{ inputs.ref || 'main' }}
+          ref: ${{ inputs.ref || (github.ref_name == 'run-aurora' && 'aurora-client-port') || 'main' }}
           token: ${{ secrets.CLIENTJAR_TOKEN }}
           path: clientjar
           persist-credentials: false
